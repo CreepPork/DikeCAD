@@ -10,11 +10,26 @@
 // Bootstrap
 @import '~bootstrap/scss/bootstrap';
 
-.navbar-laravel {
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+.navbar-dikecad {
+//   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+
+  .nav-link, .navbar-brand {
+      color: #d9dade;
+
+      &:hover {
+          color: #e6e7ea;
+      }
+  }
+}
+
+.map-sidebar {
+    color: #d9dade;
+}
+
+.row {
+    margin: 0;
 }
 
 #map {
-  height: 100vh;
+  height: 94vh;
 }

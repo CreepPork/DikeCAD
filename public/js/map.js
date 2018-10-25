@@ -74,10 +74,9 @@ module.exports = __webpack_require__(45);
 /***/ }),
 
 /***/ 45:
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ (function(module, exports, __webpack_require__) {
 
-"use strict";
-var leaflet = __webpack_require__(51);
+var leaflet = __webpack_require__(46);
 
 function convertFromGameToLeafletCoordinates(gameX, gameY) {
     var leafletX = (gameX + 5691.258167) / 144.430576;
@@ -93,62 +92,135 @@ function convertFromLeafletToGameCoordinates(leafletY, leafletX) {
     return [gameX, gameY];
 }
 
-var map = leaflet.map('map', {
-    crs: leaflet.CRS.Simple
-}).setView(convertFromGameToLeafletCoordinates(0, 0), 5);
+// 256 / 3 (the tiles don't divide evenly so the bounds don't fit precisely over the tile)
+var bounds = [[0, 0], [-256 / 3, 256 / 3]];
 
-// 256 / 3 ( the tiles don't divide evenly so the bounds don't fit precisely over the tile)
-var bounds = [[0, 0], [-85.333333333333333333333333333333, 85.333333333333333333333333333333]];
-
-leaflet.tileLayer('images/maps/atlas/{z}-{x}_{y}.png', {
-    maxZoom: 7,
+var tileLayerSettings = {
+    maxZoom: 8,
     maxNativeZoom: 7,
     size: 256,
     bounds: bounds,
     noWrap: true,
     minNativeZoom: 0,
-    minZoom: -20
-}).addTo(map);
+    minZoom: 3
+};
 
-map.on('click', function (e) {
-    var coord = e.latlng;
-    var lat = coord.lat; // y
-    var lng = coord.lng; // x
-    console.log("You clicked the map at x: " + lng + " and y: " + lat);
+var atlas = leaflet.tileLayer('images/maps/atlas/{z}-{x}_{y}.png', tileLayerSettings);
+var road = leaflet.tileLayer('images/maps/road/{z}-{x}_{y}.png', tileLayerSettings);
+var satellite = leaflet.tileLayer('images/maps/satellite/{z}-{x}_{y}.png', tileLayerSettings);
+var street = leaflet.tileLayer('images/maps/street/{z}-{x}_{y}.png', tileLayerSettings);
+var uv = leaflet.tileLayer('images/maps/uv/{z}-{x}_{y}.png', tileLayerSettings);
+
+var map = leaflet.map('map', {
+    crs: leaflet.CRS.Simple,
+    layers: [atlas, street]
+}).setView(convertFromGameToLeafletCoordinates(0, -1500), 5);
+
+var baseMaps = {
+    'Atlas': atlas,
+    'Road': road,
+    'Satellite': satellite,
+    'UV': uv
+};
+
+axios.get('/marker').then(function (response) {
+    var markers = [];
+
+    var data = response.data;
+
+    for (var marker in data.markers) {
+        var newMarker = leaflet.marker(convertFromGameToLeafletCoordinates(marker.X, marker.Y), {
+            icon: new leaflet.Icon({ iconUrl: 'images/icons/' + marker.image })
+        }).bindPopup(marker.title);
+
+        Array.prototype.push(newMarker);
+    }
+
+    markers = leaflet.layerGroup(markers);
+
+    var overlayMaps = {
+        'Streets': street,
+        'Markers': markers
+    };
+
+    map.addLayer(markers);
+
+    leaflet.control.layers(baseMaps, overlayMaps).addTo(map);
+}).catch(function (error) {
+    console.error(error);
 });
 
-// leaflet.rectangle(bounds, {color: "#f00", weight: 0.5}).addTo(map);
+function connectViaSocket() {
+    return new Promise(function (resolve, reject) {
+        var socket = new WebSocket('ws://localhost:8080');
 
-var socket = new WebSocket('ws://localhost:8080');
+        socket.onopen = function () {
+            resolve(socket);
+        };
 
-socket.onopen = function () {
-    console.log('Connection established');
-};
+        socket.onerror = function (error) {
+            reject(error);
+        };
+    });
+}
 
 var markers = [];
-socket.onmessage = function (event) {
-    if (event.data == "Connection established.") return;
-    var json = JSON.parse(event.data);
+connectViaSocket().then(function (socket) {
+    socket.onmessage = function (event) {
+        var json = JSON.parse(event.data);
 
-    markers.forEach(function (marker) {
-        if (marker.title == json.Name) {
-            marker.remove();
+        console.log(json);
+
+        if ($('#playerList').has('#player_' + json.ID)) {
+            $('#player_' + json.ID).remove();
         }
-    });
 
-    var icon = new leaflet.Icon({ iconUrl: 'images/icons/police.png' });
+        markers.forEach(function (marker) {
+            if (marker.title == json.ID) {
+                marker.remove();
+            }
+        });
 
-    var marker = leaflet.marker(convertFromGameToLeafletCoordinates(json.Position.X, json.Position.Y), { icon: icon });
-    marker.addTo(map);
-    marker.title = json.Name;
-    marker.bindPopup(json.Name);
+        if (json.Reason != null) return;
 
-    markers.push(marker);
-};
+        if (json.ModelHash != 1581098148 && json.ModelHash != -1920001264) return;
+
+        $('#playerList').append('<li id="player_' + json.ID + '">' + json.Name + '</li>');
+
+        var icon = void 0;
+
+        if (json.VehicleModelName != null) {
+            if (json.IsEmergencyVehicle) {
+                if (json.Code == 1) {
+                    icon = new leaflet.Icon({ iconUrl: 'images/icons/344.png' });
+                } else {
+                    if (json.Code == 2) {
+                        icon = new leaflet.Icon({ iconUrl: 'images/icons/345.png' });
+                    } else {
+                        icon = new leaflet.Icon({ iconUrl: 'images/icons/346.png' });
+                    }
+                }
+            } else {
+                icon = new leaflet.Icon({ iconUrl: 'images/icons/342.png' });
+            }
+        } else {
+            icon = new leaflet.Icon({ iconUrl: 'images/icons/341.png' });
+        }
+
+        var marker = leaflet.marker(convertFromGameToLeafletCoordinates(json.Position.X, json.Position.Y), { icon: icon });
+        marker.addTo(map);
+        marker.title = json.ID;
+        marker.bindPopup(json.Name);
+
+        markers.push(marker);
+    };
+}).catch(function (error) {
+    console.error(error);
+});
 
 /***/ }),
 
-/***/ 51:
+/***/ 46:
 /***/ (function(module, exports, __webpack_require__) {
 
 /* @preserve

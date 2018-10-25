@@ -19,4 +19,6 @@ Auth::routes();
 
 Route::get('/dashboard', 'DashboardController@index')->name('dashboard');
 
-Route::resource('map', 'MapController');
+Route::resource('/map', 'MapController');
+
+Route::resource('/marker', 'MarkerController');

@@ -13905,20 +13905,6 @@ window.Vue = __webpack_require__(36);
 
 Vue.component('example-component', __webpack_require__(39));
 
-var app = new Vue({
-  el: '#app'
-});
-
-// let socket = new WebSocket('ws://localhost:8080');
-//
-// socket.onopen = () => {
-//   console.log('Connection established');
-// };
-//
-// socket.onmessage = event => {
-//     document.write(event.data);
-// }
-
 /***/ }),
 /* 13 */
 /***/ (function(module, exports, __webpack_require__) {
